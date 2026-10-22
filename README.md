@@ -13,4 +13,4 @@ I am also under the perception it is faster. :)
 
 ## MLX.Support
 
-At the moment it supports mlx but i think you can also use CUDA to do something similiar. 
+At the moment it supports mlx but i think you can also use CUDA to do something similiar. I will see what I can do to make it work with CUDA. 
