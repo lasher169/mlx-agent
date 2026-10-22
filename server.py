@@ -103,7 +103,7 @@ def _pipeline_worker():
     MLX streams are thread-local, so models load + run inference on this one
     thread only. Each request is classified by the chat model, then routed to
     image generation or a chat response - decided here, on the worker thread."""
-    from test import load_models, generate_image, send
+    from initialise import load_models, generate_image, send
 
     load_models()
     
