@@ -28,9 +28,40 @@ def keyboard_input_worker(q):
             q.put("exit")
             break
         
-    
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from diffusers import FluxPipeline
 
-def load_models():
+def load_models_cuda():
+    global model_1, tokenizer_1, flux
+    
+    # --- MODEL 1: Text Model (Llama-3.1-8B 8-bit equivalent) ---
+    model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    
+    # 8-bit quantization configuration for CUDA
+    quant_config = BitsAndBytesConfig(load_in_8bit=True)
+    
+    tokenizer_1 = AutoTokenizer.from_pretrained(model_id)
+    model_1 = AutoModelForCausalLM.from_pretrained(
+        model_id,
+        quantization_config=quant_config,
+        device_map="cuda"  # Automatically maps to NVIDIA GPU
+    )
+    print("Loaded Model 1 on CUDA")
+
+    # --- FLUX: Image Model (Flux.1 Schnell) ---
+    # To mimic quantize=4 or 'schnell' 4-bit, we load the pipeline in bfloat16.
+    # Note: For strict 4-bit weights on Flux via CUDA, look up `bghira/Flux-schnell-nf4`
+    flux_id = "black-forest-labs/FLUX.1-schnell"
+    
+    flux = FluxPipeline.from_pretrained(
+        flux_id, 
+        torch_dtype=torch.bfloat16
+    ).to("cuda")
+    
+    print("Loaded Flux on CUDA")    
+
+def load_models_mlx():
     global model_1, tokenizer_1, model_2, tokenizer_2, flux, image
     from mlx_lm import load
     from mflux.models.z_image import ZImageTurbo
@@ -58,7 +89,7 @@ def generate_image(data):
     
     image = flux.generate_image(
         prompt=data,
-        num_inference_steps=20, # 40 steps is recommended by Alibaba for Qwen-Image
+        num_inference_steps=40, # 40 steps is recommended by Alibaba for Qwen-Image
         seed=42
     )
     
@@ -100,7 +131,7 @@ def send(data, model_type):
 
 def main():
     print("Hello, World mofo!")
-    load_models()
+    load_models_mlx()
     
     # Create a thread-safe queue to pass text between threads
     input_queue = queue.Queue()

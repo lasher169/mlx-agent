@@ -1,0 +1,14 @@
+# Web Server
+flask
+
+# Core Deep Learning Framework (CUDA 12.1 target)
+--extra-index-url https://pytorch.org
+torch
+torchvision
+
+# Hugging Face Ecosystem & Quantization
+transformers
+diffusers
+accelerate
+bitsandbytes
+sentencepiece

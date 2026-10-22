@@ -19,9 +19,11 @@ Test it (from any LAN PC):
         -d '{"prompt": "a red fox in the snow"}'
 """
 
+import argparse
 from datetime import datetime
 import queue
 import re
+import sys
 import threading
 import time
 import uuid
@@ -103,9 +105,10 @@ def _pipeline_worker():
     MLX streams are thread-local, so models load + run inference on this one
     thread only. Each request is classified by the chat model, then routed to
     image generation or a chat response - decided here, on the worker thread."""
-    from initialise import load_models, generate_image, send
+    from initialise import load_models_mlx, load_models_cuda, generate_image, send
 
-    load_models()
+    
+    load_models_mlx()
     
     print("\n model loaded, worker thread ready to CURL\n")
 
@@ -132,6 +135,7 @@ def _pipeline_worker():
                 image_t0 = time.perf_counter()
                 image = generate_image(prompt)
                 image_elapsed = time.perf_counter() - image_t0
+                image.save(path="my_generated_image.png")
 
                 print(f"[Worker] Image done (took {image_elapsed:.2f}s)")
                 text, error = None, None
@@ -259,9 +263,34 @@ def catch_all(path):
         return return_image_response(image)
     return jsonify({"status": "ok", "answer": text, "path": path})
 
+# Your unified worker function that now accepts the device choice
+def _start_worker(device_type):
+    if device_type == "cuda":
+        print("🚀 Starting atomic worker on NVIDIA CUDA backend...")
+        # Add your CUDA model loading logic here
+    elif device_type == "mlx":
+        print("🍏 Starting atomic worker on Apple Silicon MLX backend...")
+        # Add your MLX model loading logic here
+    else:
+        print(f"❌ Unknown device type: {device_type}")
+        sys.exit(1)
+
 
 # ---- Startup -----------------------------------------------------------
 if __name__ == "__main__":
+    # 1. Setup the command-line argument parser
+    parser = argparse.ArgumentParser(description="Run the text/image generation server.")
+    parser.add_argument(
+        "--device", 
+        type=str, 
+        choices=["cuda", "mlx"], 
+        default="mlx",  # Defaults to MLX if you don't pass anything
+        help="Specify the hardware backend: 'cuda' for NVIDIA or 'mlx' for Apple Silicon."
+    )
+    
+    # 2. Parse the arguments
+    args = parser.parse_args()
+    
     # Start the single atomic MLX worker (loads models, classifies, generates).
     _start_worker()
 
