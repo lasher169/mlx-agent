@@ -1,6 +1,7 @@
 """Flask HTTP gateway for the text and image models."""
 
 import argparse
+from io import BytesIO
 import os
 import queue
 import tempfile
@@ -48,8 +49,13 @@ def _pipeline_worker(device_type):
                 image_t0 = time.perf_counter()
                 result_image = generate_image(prompt)
                 image_elapsed = time.perf_counter() - image_t0
-                result_image.save(path="my_generated_image.png")
-                print(f"[Worker] Image done (took {image_elapsed:.2f}s)")
+                image_path = os.path.join(tempfile.gettempdir(), f"generated-{job_id}.png")
+                result_image.save(path=image_path)
+                image_size = os.path.getsize(image_path)
+                if image_size == 0:
+                    raise RuntimeError("Image generation produced an empty file.")
+                print(f"[Worker] Image done ({image_size} bytes, took {image_elapsed:.2f}s)")
+                result_image = image_path
                 text, error = None, None
             else:
                 chat_t0 = time.perf_counter()
@@ -104,20 +110,20 @@ def submit_and_wait(prompt, timeout=3600):
     return entry["image"], entry["text"], entry["error"]
 
 
-def return_image_response(result_image, filename="generated_image.png", keep=False):
-    fd, tmp_path = tempfile.mkstemp(suffix=".png")
-    os.close(fd)
+def return_image_response(image_path, filename="generated_image.png"):
     try:
-        result_image.save(path=tmp_path)
-        return send_file(
-            tmp_path,
-            mimetype="image/png",
-            as_attachment=True,
-            download_name=filename,
-        )
+        with open(image_path, "rb") as image_file:
+            image_data = image_file.read()
     finally:
-        if not keep:
-            os.unlink(tmp_path)
+        if os.path.exists(image_path):
+            os.unlink(image_path)
+
+    return send_file(
+        BytesIO(image_data),
+        mimetype="image/png",
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 def get_request_data():

@@ -1,9 +1,19 @@
+import os
 import re
 from datetime import datetime
+
+from dotenv import load_dotenv
 
 # Optional / heavy MLX imports are done lazily inside the functions that need
 # them (load_models, generate_image, send) so that `import test` always works,
 # even before mlx/mflux are installed or while models are still downloading.
+
+load_dotenv()
+
+
+def _chat_model_id(default):
+    return os.getenv("CHAT_MODEL", "").strip() or default
+
 
 def _now_str():
     """Wall-clock timestamp with millisecond precision, for log lines."""
@@ -85,7 +95,8 @@ def load_models_cuda():
     from diffusers import FluxPipeline
     
     # --- MODEL 1: Text Model (Llama-3.1-8B 8-bit equivalent) ---
-    model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    model_id = _chat_model_id("meta-llama/Meta-Llama-3.1-8B-Instruct")
+    print(f"Loading Model 1 from {model_id} ")
     
     # 8-bit quantization configuration for CUDA
     quant_config = BitsAndBytesConfig(load_in_8bit=True)
@@ -119,7 +130,9 @@ def load_models_mlx():
     # model_1, tokenizer_1 = load("mlx-community/Qwen3.8-27B-4bit")
     #model_1, tokenizer_1 = load("mlx-community/Qwen3.8-27B-Uncensored-OptiQ-4bit")
     # model_1, tokenizer_1 = load("mlx-community/gemma-4-26B-A4B-it-qat-OptiQ-4bit", lazy=False)
-    model_1, tokenizer_1 = load("mlx-community/Meta-Llama-3.1-8B-Instruct-8bit", lazy=False)
+    model_id = _chat_model_id("mlx-community/Meta-Llama-3.1-8B-Instruct-8bit")
+    print(f"Loading Model 1 from {model_id} ")
+    model_1, tokenizer_1 = load(model_id, lazy=False)
     
     print("load model1")
 

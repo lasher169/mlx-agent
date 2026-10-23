@@ -3,4 +3,5 @@ mlx-audio==0.5.0
 mlx-dspark==0.15.1
 mlx-lm==0.31.3
 mlx-metal==0.32.2
+python-dotenv
 mlx-vlm==0.6.15

@@ -12,3 +12,4 @@ diffusers
 accelerate
 bitsandbytes
 sentencepiece
+python-dotenv
