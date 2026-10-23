@@ -1,15 +1,64 @@
-import threading
-import queue
-import time
+import re
 from datetime import datetime
 
-from server import _classify, _strip_thinking, _now_str
 # Optional / heavy MLX imports are done lazily inside the functions that need
 # them (load_models, generate_image, send) so that `import test` always works,
 # even before mlx/mflux are installed or while models are still downloading.
 
+def _now_str():
+    """Wall-clock timestamp with millisecond precision, for log lines."""
+    return datetime.now().strftime("%H:%M:%S.%f")[:-3]
+
 
 model_1, tokenizer_1, model_2, tokenizer_2, flux, image = None, None, None, None, None, None
+
+def _parse_classification(raw):
+    """Extract "chat" or "image" from a (possibly thinking) classifier reply.
+
+    Only text after the last channel marker is judged. If the generation was
+    truncated at a marker (empty final part), returns None rather than
+    scanning the reasoning, which may mention "image".
+    """
+    parts = re.split(r"<\|?channel\|?>", raw)
+    final = (parts[-1] if len(parts) > 1 else raw).strip().lower()
+    if not final:
+        return None
+    words = re.findall(r"\b(chat|image)\b", final)
+    return words[-1] if words else None
+
+def _classify(prompt, send):
+    """Ask the chat model whether this is a chat or an image prompt.
+
+    Returns "image" or "chat" by asking the model to answer just that."""
+    question = (
+        f"As a prompt classifier, tell me whether this is a chat prompt or an "
+        f"image prompt: '{prompt}'. If it is a chat prompt, respond with exactly "
+        f"'chat'. If it is an image prompt, respond with exactly 'image'. If you are unsure, respond with 'unsure'. Do not add any other text or explanation."
+    )
+    try:
+        answer = send(question, model_type="model1") or ""
+        #print(f"[Worker] Classifier response: {answer!r}")
+        kind = _parse_classification(answer)
+        #print(f"[Worker] Parsed classification: {kind!r}")
+    except Exception as e:
+        #print(f"[Worker] Classification failed (defaulting to chat): {e}")
+        kind = None
+    return kind or "chat"
+
+
+def _strip_thinking(raw):
+    """Drop the model's thinking channel; keep only the final answer.
+
+    The thinking model emits channel blocks like
+    '<|channel>thought ...reasoning... <channel|>final answer'. Only the
+    text after the LAST channel marker is the actual answer; the reasoning
+    may mention 'image'/'chat' and must not influence parsing.
+    """
+    parts = re.split(r"<\|?channel\|?>", raw)  # tolerate <|channel> / <channel|> / <|channel|>
+    if len(parts) == 1:
+        return raw.strip()                     # no channel markers: normal output
+    final = parts[-1].strip()
+    return final if final else raw.strip()     # guard against truncated generation
 
 
 def keyboard_input_worker(q):
@@ -28,12 +77,12 @@ def keyboard_input_worker(q):
             q.put("exit")
             break
         
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from diffusers import FluxPipeline
-
 def load_models_cuda():
     global model_1, tokenizer_1, flux
+
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+    from diffusers import FluxPipeline
     
     # --- MODEL 1: Text Model (Llama-3.1-8B 8-bit equivalent) ---
     model_id = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -127,49 +176,5 @@ def send(data, model_type):
     # The thinking model emits '<|channel>thought ... <channel|>answer';
     # return only the final answer, not the reasoning channel.
     return _strip_thinking(response_1)
-    
-
-def main():
-    print("Hello, World mofo!")
-    load_models_mlx()
-    
-    # Create a thread-safe queue to pass text between threads
-    input_queue = queue.Queue()
-    
-    input_thread = threading.Thread(target=keyboard_input_worker, args=(input_queue,), daemon=True)
-    input_thread.start()
-    
-    print("\nSystem ready. Type commands below:")
-    
-        # 3. Main execution loop
-    while True:
-        # Check if the keyboard thread sent any data
-        if not input_queue.empty():
-            data = input_queue.get()
-            
-            if data.lower() == 'exit':
-                print("[Main]: Exit signal received. Shutting down system...")
-                break
-            
-            print("\n\n####start time =", _now_str())
-
-            print(f"[Main processed command]: {data}")
-            # prompt = send(data, model_type="model1")
-            kind = _classify(data, send)
-            
-            print(f"[Classfication] → {kind})")
-            
-            # image = generate_image(data)
-            # image.save(path="my_generated_image.png")
-
-            print("####Finish time =", _now_str())
-            print("\nSystem ready. Type commands below:")
-            
-        # Simulate your main loop doing background model tasks or inferences
-        # print(".", end="", flush=True)
-        time.sleep(0.1)
-        
 
 
-if __name__ == "__main__":
-    main()
