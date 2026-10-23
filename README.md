@@ -17,6 +17,9 @@ At the moment it supports mlx but i think you can also use CUDA to do something 
 
 ## How to run
 
+there is .env.example file change the model to the one you want to use. eg  CHAT_MODEL=mlx-community/Meta-Llama-3.1-8B-Instruct-8bit
+
 Run the server with `python server.py --device mlx` on Apple Silicon or `python server.py --device cuda` on a CUDA machine. Install the matching requirements file first.
 
 To change the chat model, edit `CHAT_MODEL` in `.env`. `.env.example` shows the expected format, and `.env` is excluded from Git.
+
