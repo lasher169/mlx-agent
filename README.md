@@ -1,4 +1,4 @@
-# mlx-agent
+# mlx-server
 
 This is an attempt to build a Python app which connects directly to the LLM models. 
 
