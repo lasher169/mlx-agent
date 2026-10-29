@@ -1,15 +1,15 @@
 # Web Server
-flask
+flask==3.0.3
 
-# Core Deep Learning Framework (CUDA 12.1 target)
+# Core Deep Learning Framework (Targeting CUDA 12.6/12.8 compatible with CUDA 13)
 --extra-index-url https://pytorch.org
-torch
-torchvision
+torch==2.5.1+cu126
+torchvision==0.20.1+cu126
 
 # Hugging Face Ecosystem & Quantization
-transformers
-diffusers
-accelerate
-bitsandbytes
-sentencepiece
-python-dotenv
+transformers==4.46.3
+diffusers==0.31.0
+accelerate==1.1.1
+bitsandbytes==0.44.1
+sentencepiece==0.2.0
+python-dotenv==1.0.1
