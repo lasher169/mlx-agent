@@ -95,7 +95,7 @@ def load_models_cuda():
     from diffusers import FluxPipeline
     
     # --- MODEL 1: Text Model (Llama-3.1-8B 8-bit equivalent) ---
-    model_id = _chat_model_id("meta-llama/Meta-Llama-3.1-8B-Instruct")
+    model_id = _chat_model_id("meta-llama/Meta-Llama-3.1-8B-Instruct-8bit")
     print(f"Loading Model 1 from {model_id} ")
     
     # 8-bit quantization configuration for CUDA
@@ -152,7 +152,9 @@ def generate_image(data):
     image = flux.generate_image(
         prompt=data,
         num_inference_steps=40, # 40 steps is recommended by Alibaba for Qwen-Image
-        seed=42
+        seed=42,
+        height=2048,
+        width=2048
     )
     
     # image = flux.generate_image(
