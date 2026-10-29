@@ -17,6 +17,8 @@ At the moment it supports mlx but i think you can also use CUDA to do something 
 
 ## How to run
 
+do a pip install -r requirements-cuda.txt or the mlx equivalent. this should install the required libs for you.
+
 there is .env.example file change the model to the one you want to use. eg  CHAT_MODEL=mlx-community/Meta-Llama-3.1-8B-Instruct-8bit
 
 Run the server with `python server.py --device mlx` on Apple Silicon or `python server.py --device cuda` on a CUDA machine. Install the matching requirements file first.
