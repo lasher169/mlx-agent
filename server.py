@@ -1,6 +1,7 @@
 """Flask HTTP gateway for the text and image models."""
 
 import argparse
+import json
 from io import BytesIO
 import os
 import queue
@@ -10,7 +11,7 @@ import time
 import uuid
 from datetime import datetime
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 
 from initialise import _classify, generate_image, load_models_cuda, load_models_mlx, send
 
@@ -139,6 +140,86 @@ def get_request_data():
     except Exception as exc:
         print(f"Error occurred while fetching request data: {exc}")
         return None
+
+
+_IMAGE_DIR = os.path.join(tempfile.gettempdir(), "mlx-agent-images")
+_MODEL_NAME = "agent"
+
+
+def _last_user_prompt(messages):
+    for message in reversed(messages or []):
+        if message.get("role") != "user":
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = [p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"]
+            return "\n".join(parts)
+    return ""
+
+
+def _openai_reply(content, stream):
+    created = int(time.time())
+    completion_id = f"chatcmpl-{uuid.uuid4().hex}"
+    if not stream:
+        return jsonify({
+            "id": completion_id,
+            "object": "chat.completion",
+            "created": created,
+            "model": _MODEL_NAME,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        })
+
+    def events():
+        base = {"id": completion_id, "object": "chat.completion.chunk", "created": created, "model": _MODEL_NAME}
+        first = dict(base, choices=[{"index": 0, "delta": {"role": "assistant", "content": content}, "finish_reason": None}])
+        last = dict(base, choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}])
+        yield f"data: {json.dumps(first)}\n\n"
+        yield f"data: {json.dumps(last)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return Response(events(), mimetype="text/event-stream")
+
+
+@app.route("/v1/models", methods=["GET"])
+def list_models():
+    return jsonify({
+        "object": "list",
+        "data": [{"id": _MODEL_NAME, "object": "model", "created": 0, "owned_by": "local"}],
+    })
+
+
+@app.route("/v1/chat/completions", methods=["POST"])
+def chat_completions():
+    body = request.get_json(force=True, silent=True) or {}
+    prompt = _last_user_prompt(body.get("messages"))
+    if not prompt.strip():
+        return jsonify({"error": {"message": "No user message found."}}), 400
+
+    result_image, text, error = submit_and_wait(prompt)
+    if error is not None:
+        return jsonify({"error": {"message": error}}), 500
+
+    if result_image is not None:
+        os.makedirs(_IMAGE_DIR, exist_ok=True)
+        name = f"{uuid.uuid4().hex}.png"
+        saved_path = os.path.join(_IMAGE_DIR, name)
+        os.replace(result_image, saved_path)
+        url = f"{request.host_url}images/{name}"
+        text = f"Image generated: {url}\nSaved at: {saved_path}\n\n![generated image]({url})"
+
+    return _openai_reply(text, bool(body.get("stream")))
+
+
+@app.route("/images/<name>", methods=["GET"])
+def serve_image(name):
+    return send_from_directory(_IMAGE_DIR, name, mimetype="image/png")
 
 
 @app.route("/", methods=["GET", "POST"])

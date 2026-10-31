@@ -151,10 +151,10 @@ def generate_image(data):
     
     image = flux.generate_image(
         prompt=data,
-        num_inference_steps=40, # 40 steps is recommended by Alibaba for Qwen-Image
+        num_inference_steps=8, # 40 steps is recommended by Alibaba for Qwen-Image
         seed=42,
-        height=2048,
-        width=2048
+        height=2480,
+        width=2480
     )
     
     # image = flux.generate_image(
